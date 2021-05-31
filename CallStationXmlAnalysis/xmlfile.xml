@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<MSG> 
+  <META> 
+    <SNDR>INTER</SNDR>  
+    <RECV>A123</RECV>  
+    <DDTM>20120703232210</DDTM>  
+    <TYPE>EVAC</TYPE> 
+  </META>  
+  <EVNT> 
+    <ORIN>NCO1_CONTROLINPUT1</ORIN>  
+    <EVST>ON</EVST> 
+  </EVNT> 
+</MSG>
