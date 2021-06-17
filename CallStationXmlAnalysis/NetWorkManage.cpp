@@ -5,7 +5,10 @@ std::string NetWorkManage::stServerRecv = "";
 std::string NetWorkManage::stSurplus = "";
 VecString NetWorkManage::vecSerRecvInfo;
 VecString NetWorkManage::vecException;
-
+VecString NetWorkManage::vecCliRecvInfo;
+int NetWorkManage::procolType = TCPSERVER;
+StreamSocket NetWorkManage::ss;
+//Poco::Net::TCPServer* NetWorkManage::serverPri;
 NetWorkManage::NetWorkManage()
 {
 	clientRecv = "";
@@ -46,20 +49,23 @@ void TcpServerConnection::run(void)
 	{
 		
 		char buf[RECV_BUF_SIZE] = { 0 };
-
+		CCriticalSection g_UpdateData;
 		while (true)
 		{
 			if (socket().available())
 			{
-				lock_guard<mutex> lg(m_mutexServerRecv);
-				socket().receiveBytes(buf, 1024);
+				g_UpdateData.Lock();
+				//lock_guard<mutex> lg(m_mutexServerRecv);
+				int nLen = socket().receiveBytes(buf, 1024);
 				std::stringstream ssbuf(buf);
+				ITC_WriteLog(LOG_LEVEL_INFO, "%d:%s", nLen,buf);
+
 				NetWorkManage net;
 				net.handleServerRecvInfo(buf);
 			
-				//std::cout << "recvData: " << ssbuf.str() << std::endl;
-				socket().sendBytes(ssbuf.str().data(), ssbuf.str().length());
+				//socket().sendBytes(ssbuf.str().data(), ssbuf.str().length());
 				memset(buf, 0x00, sizeof(buf));
+				g_UpdateData.Unlock();
 			}
 		}
 	}
@@ -94,15 +100,16 @@ int NetWorkManage::tcpServerOpen(int port)
 	param->setMaxThreads(100);
 	serverPri = new Poco::Net::TCPServer(new TcpServerGo,serverSocket);
 	serverPri->start();
+	procolType = TCPSERVER;
 	return 0;
 }
 
 void NetWorkManage::tcpServerClose()
 {
+	cleanServerRecvStr();
 	serverPri->stop();
-	delete serverPri;
+	delete  serverPri;
 	serverPri = nullptr;
-	setServerRecvStr("");
 }
 
 int NetWorkManage::tcpCilentConect(const char *ip, int port)
@@ -149,7 +156,7 @@ int NetWorkManage::tcpCilentConect(const char *ip, int port)
 
 	//setopt nodelay
 	ss.setNoDelay(true); 
-
+	procolType = TCPCLIENT;
 	return 0;
 }
 
@@ -168,7 +175,8 @@ int NetWorkManage::clientReceiveMsg(void *buf)
 	if (ss.available())
 	{
 		recvLen = ss.receiveBytes(buffer, sizeof(buffer)); //block
-		setClientRecvStr(buffer);
+		//setClientRecvStr(buffer);
+		handleServerRecvInfo(buffer);
 		memcpy(buf, buffer, recvLen);
 	}
 	return recvLen;
@@ -179,6 +187,7 @@ void NetWorkManage::tcpClientClose()
 	vecException.clear();
 	vector<string>().swap(vecException);//清空容量
 	ss.close();
+	cleanClientRecvStr();
 }
 
 int NetWorkManage::getExceptionLength()
@@ -188,7 +197,7 @@ int NetWorkManage::getExceptionLength()
 
 int NetWorkManage::getClientRecvLength()
 {
-	return clientRecv.length();
+	return vecCliRecvInfo.size();
 }
 
 int NetWorkManage::getServerRecvLength()
@@ -196,9 +205,9 @@ int NetWorkManage::getServerRecvLength()
 	return vecSerRecvInfo.size();
 }
 
-std::string NetWorkManage::getClientRecvStr()
+VecString NetWorkManage::getClientRecvStr()
 {
-	return clientRecv;
+	return vecCliRecvInfo;
 }
 
 VecString NetWorkManage::getServerRecvStr()
@@ -208,13 +217,47 @@ VecString NetWorkManage::getServerRecvStr()
 
 void NetWorkManage::setClientRecvStr(std::string recvStr)
 {
-	clientRecv = recvStr;
+	ITC_WriteLog(LOG_LEVEL_INFO, "set ClientRecv: %s", recvStr.c_str());
+	vecCliRecvInfo.push_back(recvStr);
 }
 
 void NetWorkManage::setServerRecvStr(std::string recvStr)
 {
-
+	ITC_WriteLog(LOG_LEVEL_INFO, "set Recv: %s", recvStr.c_str());
 	vecSerRecvInfo.push_back(recvStr);
+}
+
+int NetWorkManage::getCurrentType()
+{
+
+	return procolType;
+}
+
+void NetWorkManage::cleanClientRecvStr()
+{
+	vecCliRecvInfo.clear();
+	vector<string>().swap(vecCliRecvInfo);//清空容量
+}
+
+void NetWorkManage::cleanServerRecvStr()
+{
+	if (vecSerRecvInfo.size() != 0)
+	{
+		vecSerRecvInfo.clear();
+		vector<string>().swap(vecSerRecvInfo);//清空容量
+
+	}
+}
+
+void NetWorkManage::setServerAddr(std::string addr)
+{
+	serverAddr = addr;
+}
+
+std::string NetWorkManage::getServerAddr()
+{
+
+	return serverAddr;
 }
 
 VecString NetWorkManage::getExceptionStr()
@@ -224,52 +267,56 @@ VecString NetWorkManage::getExceptionStr()
 
 bool NetWorkManage::handleServerRecvInfo(std::string info)
 {
+	info.erase(0, info.find_first_not_of(" "));
+	info.erase(info.find_last_not_of(" ") + 1);
 	if (info.empty())
 	{
 		return false;
 	}
 	g_UpdateData.Lock();
-	std::string XML_HEAD = "<?xml version=\"1.0\" encoding=\"utf-8\"?>";
+	//std::string XML_HEAD = "<?xml version=\"1.0\" encoding=\"utf-8\"?>";
+	std::string XML_HEAD = "<MSG>";
 	std::string XML_END = "</MSG>";
-	info.erase(0, info.find_first_not_of(" "));
-	info.erase(info.find_last_not_of(" ") + 1);
 	stSurplus.erase(0, stSurplus.find_first_not_of(" "));
 	stSurplus.erase(stSurplus.find_last_not_of(" ") + 1);
 	stSurplus.append(info);
 	std::string strTemp = stSurplus;
-	std::string strHead = stSurplus.substr(0, 38);
-	std::string strEnd = stSurplus.substr(stSurplus.size() - 6);
-
-	for (size_t i = 0; i < 1024; i++)
+	//std::string strHead = stSurplus.substr(0, 38);
+	//std::string strEnd = stSurplus.substr(stSurplus.size() - 6);
+	//setClientRecvStr(strTemp);
+	stSurplus = "";
+	for (;;)
 	{
 		if (strTemp.find("<MSG>") != -1 && strTemp.find("</MSG>") != -1)
 		{
-			//if (XML_HEAD == strHead && XML_END == strEnd)
-			//{
-			//	setServerRecvStr(strTemp);
-			//	break;
-			//}
-			//else
-			//{
 				int a = strTemp.find(XML_HEAD);
 				int b = strTemp.find(XML_END);
 				if (a != -1 && b != -1)
 				{
 					string strUnpacking = strTemp.substr(a, b + 6);
-					setServerRecvStr(strUnpacking);
+					switch (procolType)
+					{
+					case TCPSERVER:
+						setServerRecvStr(strUnpacking);
+						break;
+					case TCPCLIENT:
+						setClientRecvStr(strUnpacking);
+						break;
+					default:
+						break;
+					}
+					
 					strTemp.erase(strTemp.find(XML_HEAD), strUnpacking.length());
-
 				}
 				else
 				{
 					break;
 				}
-			//}
 		}
 		else
 		{
 			stSurplus = "";
-			stSurplus = strTemp;
+			//stSurplus = strTemp;
 			break;
 		}
 	}

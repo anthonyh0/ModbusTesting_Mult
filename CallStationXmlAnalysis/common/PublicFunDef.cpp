@@ -365,45 +365,73 @@ VecString vSplitString(std::string str, std::string pattern)
 	}
 	return result;
 }
-//int  XH_WriteLog(int _level_, int statnum, LPCTSTR Errinfo, ...)
-//{
-//	CString tmp,err;
-//	va_list args;
-//	va_start(args, Errinfo);
-//	err.FormatV(Errinfo,args);
-//	va_end(args);
-//
-//	switch (_level_)
-//	{
-//    case LOG_LEVEL_NORMAL:	
-//		tmp.Format(": [station_%02d]",statnum);
-//		tmp = tmp + " -- " + err;
-//		SYSLOG_SETLOGLEVEL_NORMAL;
-//		SYSLOG_NORMAL(tmp.GetBuffer(0));	
-//		tmp.ReleaseBuffer();
-//		break;
-//		
-//	case LOG_LEVEL_ERROR:	     
-//		tmp.Format(": [station_%02d]",statnum);
-//		tmp = tmp + " -- " + err;
-//		SYSLOG_SETLOGLEVEL_ERROR;
-//		SYSLOG_ERROR(tmp.GetBuffer(0));	
-//		tmp.ReleaseBuffer();
-//		break;
-//		
-//	case LOG_LEVEL_INFO:	
-//		tmp = ": -- " + err;
-//		SYSLOG_SETLOGLEVEL_INFO;
-//		SYSLOG_INFO(tmp.GetBuffer(0));
-//		tmp.ReleaseBuffer();
-//		break;
-//		
-//	default:
-//		break;
-//	} 
-//	return 0; 
-//
-//}
+int  ITC_WriteLog(int _level_,  LPCTSTR Errinfo, ...)
+{
+	CString tmp,err;
+	va_list args;
+	va_start(args, Errinfo);
+	err.FormatV(Errinfo,args);
+	va_end(args);
+
+	switch (_level_)
+	{
+    case LOG_LEVEL_NORMAL:	
+		tmp.Format(":");
+		tmp = tmp + " -- " + err;
+		SYSLOG_SETLOGLEVEL_NORMAL;
+		SYSLOG_NORMAL(tmp.GetBuffer(0));	
+		tmp.ReleaseBuffer();
+		break;
+		
+	case LOG_LEVEL_ERROR:	     
+		tmp.Format(":");
+		tmp = tmp + " -- " + err;
+		SYSLOG_SETLOGLEVEL_ERROR;
+		SYSLOG_ERROR(tmp.GetBuffer(0));	
+		tmp.ReleaseBuffer();
+		break;
+		
+	case LOG_LEVEL_INFO:	
+		tmp = ": -- " + err;
+		SYSLOG_SETLOGLEVEL_INFO;
+		SYSLOG_INFO(tmp.GetBuffer(0));
+		tmp.ReleaseBuffer();
+		break;
+		
+	default:
+		break;
+	} 
+	return 0; 
+
+}
+
+int initializeLog(char* logName)
+{
+	//创建日志目录或文件	
+	CFileStatus     fs;
+	CFileException  e;
+	CStdioFile      m_File;
+	char szPath[1024] = { 0 };
+	std::string currentPath = getCurrentPath();
+	//创建路径
+	if (!CFile::GetStatus(currentPath.c_str(), fs))
+	{
+		CreateDirectory(currentPath.c_str(), 0);
+	}
+
+	sprintf(szPath, "%s\\%s", currentPath.c_str(), logName);
+
+	// 创建日志文件	
+	if (!CFile::GetStatus(szPath, fs))
+	{
+		if (m_File.Open(szPath, CFile::modeCreate, &e))
+		{
+			m_File.Close();
+		}
+	}
+	SYSLOG_SETFILENAME(szPath);
+	return 0;
+}
 
 int XH_EncodeBase64(char *pASCSrc,char *pBase64Res)
 {	int  srcLen;
@@ -1335,6 +1363,13 @@ CString getCurrentPath()
 	returnStr = strCurPath.Mid(0, strCurPath.ReverseFind('\\'));
 	return returnStr;
 }
+//std::string getCurrentPath_string()
+//{
+//	std::string strCurPath, returnStr;
+//	GetModuleFileName(NULL, (char*)strCurPath.c_str(), MAX_PATH);
+//	returnStr = strCurPath.substr(0, strCurPath.rfind("\\"));
+//	return returnStr;
+//}
 /**
 * @brief ascii convert hex
 * @par param[in] *hex:hex data
@@ -1575,4 +1610,124 @@ CString GetGmtTime()
 	CTime tm; tm = CTime::GetCurrentTime();
 	str = tm.Format("%Y-%m-%d %X");
 	return str;
+}
+
+vector<NetConfig> GetNetworkConfig()
+{
+	vector<NetConfig> vecNetConfig;
+	//PIP_ADAPTER_INFO结构体指针存储本机网卡信息
+	PIP_ADAPTER_INFO pIpAdapterInfo = new IP_ADAPTER_INFO();
+	//得到结构体大小,用于GetAdaptersInfo参数
+	unsigned long stSize = sizeof(IP_ADAPTER_INFO);
+	//调用GetAdaptersInfo函数,填充pIpAdapterInfo指针变量;其中stSize参数既是一个输入量也是一个输出量
+	int nRel = GetAdaptersInfo(pIpAdapterInfo, &stSize);
+	//记录网卡数量
+	DWORD netCardNum = 0;
+	GetNumberOfInterfaces(&netCardNum);
+	//cout << "网卡数量：" << netCardNum << endl; netCardNum = 0;
+	//记录每张网卡上的IP地址数量
+	int IPnumPerNetCard = 0;
+	if (ERROR_BUFFER_OVERFLOW == nRel)
+	{
+		//如果函数返回的是ERROR_BUFFER_OVERFLOW
+		//则说明GetAdaptersInfo参数传递的内存空间不够,同时其传出stSize,表示需要的空间大小
+		//这也是说明为什么stSize既是一个输入量也是一个输出量
+		//释放原来的内存空间
+		delete pIpAdapterInfo;
+		//重新申请内存空间用来存储所有网卡信息
+		pIpAdapterInfo = (PIP_ADAPTER_INFO)new BYTE[stSize];
+		//再次调用GetAdaptersInfo函数,填充pIpAdapterInfo指针变量
+		nRel = GetAdaptersInfo(pIpAdapterInfo, &stSize);
+	}
+	if (ERROR_SUCCESS == nRel)
+	{
+		//输出网卡信息
+		//可能有多网卡,因此通过循环去判断
+		while (pIpAdapterInfo)
+		{
+			//cout << "网卡序号：" << ++netCardNum << "\t" << pIpAdapterInfo->Index << endl;
+			NetConfig netConfig;
+			netConfig.netWorkCardName = pIpAdapterInfo->AdapterName;//网卡名称
+			netConfig.netWorkCardDescription = pIpAdapterInfo->Description;//网卡描述
+			std::string netType = "";
+			switch (pIpAdapterInfo->Type)//网卡类型
+			{
+			case MIB_IF_TYPE_OTHER:        netType = "OTHER"; break;
+			case MIB_IF_TYPE_ETHERNET:    netType = "ETHERNET"; break;
+			case MIB_IF_TYPE_TOKENRING:    netType = "TOKENRING"; break;
+			case MIB_IF_TYPE_FDDI:        netType = "FDDI"; break;
+			case MIB_IF_TYPE_PPP:        netType = "PPP"; break;
+			case MIB_IF_TYPE_LOOPBACK:    netType = "LOOPBACK"; break;
+			case MIB_IF_TYPE_SLIP:        netType = "SLIP"; break;
+			default:                    netType = ""; break;
+			}
+			netConfig.netWorkCardType = netType;
+			char chMac[18] = { 0 };
+			int macIndex = 0;
+
+			//网卡MAC地址
+			for (DWORD i = 0; i < pIpAdapterInfo->AddressLength; i++)
+			{
+				if (i < pIpAdapterInfo->AddressLength - 1)
+				{
+					sprintf(chMac + macIndex * 3, "%02X-", pIpAdapterInfo->Address[i]);
+				}
+				else
+				{
+					sprintf(chMac + macIndex * 3, "%02X", pIpAdapterInfo->Address[i]);
+				}
+				macIndex++;
+			}
+			chMac[17] = 0;
+			netConfig.netWorkMac = chMac;
+			//网卡IP地址如下
+			IPnumPerNetCard = 0;
+			//可能网卡有多IP,因此通过循环去判断
+			IP_ADDR_STRING* pIpAddrString = &(pIpAdapterInfo->IpAddressList);
+			do
+			{
+
+				netConfig.networkCardNum = ++IPnumPerNetCard; //网卡上的IP计数
+				netConfig.ipAddress = pIpAddrString->IpAddress.String;//IP 地址
+				netConfig.subnetMask = pIpAddrString->IpMask.String;//子网掩码
+				netConfig.gateway = pIpAdapterInfo->GatewayList.IpAddress.String;//网关地址
+				vecNetConfig.push_back(netConfig);
+				pIpAddrString = pIpAddrString->Next;
+			} while (pIpAddrString);
+			pIpAdapterInfo = pIpAdapterInfo->Next;
+		}
+
+	}
+	//释放内存空间
+	if (pIpAdapterInfo)
+	{
+		delete  pIpAdapterInfo;
+	}
+	return vecNetConfig;
+}
+std::string get_pathOnDla(std::string filter) {
+	OPENFILENAME ofn;
+	char szFile[300];
+
+	ZeroMemory(&ofn, sizeof(ofn));
+	ofn.lStructSize = sizeof(ofn);
+	ofn.hwndOwner = NULL;
+	ofn.lpstrFile = (LPSTR)szFile;
+	ofn.lpstrFile[0] = '\0';
+	ofn.nFilterIndex = 1;
+	ofn.nMaxFile = sizeof(szFile);
+	ofn.lpstrFilter = filter.c_str();//"xml file(*.xml)\0*.xml\0ALL file(*.*)\0*.*\0\0";
+	ofn.lpstrFileTitle = NULL;
+	ofn.nMaxFileTitle = 0;
+	ofn.lpstrInitialDir = NULL;
+
+	ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+
+	std::string path_image = "";
+	if (GetOpenFileName(&ofn)) {
+		return ofn.lpstrFile;
+	}
+	else {
+		return "";
+	}
 }

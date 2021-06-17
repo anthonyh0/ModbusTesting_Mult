@@ -10,6 +10,7 @@
 #include "MyEdit.h"
 #include "PublicFunDef.h"
 #include "NetWorkManage.h"
+#include "NetworkPacket.h"
 #include "afxcmn.h"
 using namespace std;
 // CCallStationXmlAnalysisDlg ¶Ô»°¿ò
@@ -38,7 +39,9 @@ protected:
 	DECLARE_MESSAGE_MAP()
 public:
 	NetWorkManage net;
+	NetworkPacket netPacket;
 	bool isFile;
+	int selectIndex;
 	int idIndex;
 	int lastNum;
 	VecString vecSerRecvInfo;
@@ -63,4 +66,5 @@ public:
 	afx_msg void OnNMDblclkListHistory(NMHDR *pNMHDR, LRESULT *pResult);
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
 
+	CComboBox m_combo_adapter;
 };

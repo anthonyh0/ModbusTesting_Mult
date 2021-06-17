@@ -9,10 +9,13 @@
 #include <iostream>
 #include <fstream> 
 #include "INI.h"
+#include "SysLogs.h"
+#include "Poco/LocalDateTime.h"
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
 
+using Poco::LocalDateTime;
 
 // 用于应用程序“关于”菜单项的 CAboutDlg 对话框
 
@@ -68,6 +71,7 @@ void CCallStationXmlAnalysisDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_COMBO_IP, m_combo_ip);
 	DDX_Control(pDX, IDC_COMBO_PORT, m_combo_port);
 	DDX_Control(pDX, IDC_LIST_HISTORY, m_listControl_history);
+	DDX_Control(pDX, IDC_COMBO_ADAPTER, m_combo_adapter);
 }
 
 BEGIN_MESSAGE_MAP(CCallStationXmlAnalysisDlg, CDialogEx)
@@ -116,12 +120,21 @@ BOOL CCallStationXmlAnalysisDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 设置小图标
 
 	// TODO:  在此添加额外的初始化代码
+	m_combo_procotol.EnableWindow(true);
+	m_combo_ip.EnableWindow(true);
+	m_combo_port.EnableWindow(true);
+
+	m_edit_browse.ShowWindow(SW_HIDE);
+	GetDlgItem(IDC_BUTTON_BROWSE)->ShowWindow(SW_HIDE);
+
 	idIndex = 0;
 	m_ToolTip.Create(this);
 	m_ToolTip.AddTool(GetDlgItem(IDC_EDIT_INPXML), _T("[可拖动XML文件到这]"));
 
 	m_combo_procotol.ResetContent();
+	m_combo_procotol.AddString("抓包");
 	m_combo_procotol.AddString("TCP Server");
+	m_combo_procotol.AddString("TCP Client");
 	m_combo_procotol.SetCurSel(0);
 
 	m_combo_port.ResetContent();
@@ -150,6 +163,29 @@ BOOL CCallStationXmlAnalysisDlg::OnInitDialog()
 	m_listControl_history.InsertColumn(0, "ID", LVCFMT_CENTER, 60, 0);
 	m_listControl_history.InsertColumn(1, "信息", LVCFMT_LEFT, 500, 1);
 	lastNum = 0;
+
+	selectIndex = 0;
+
+	initializeLog("xmlAnalysis.log");
+	ITC_WriteLog(LOG_LEVEL_INFO, "------------------------------------------------------------");
+
+	std::vector<std::string> vecDevsList;
+	string errStr = "";
+	if (-1 == netPacket.findAllDevs(vecDevsList, (char*)errStr.c_str()))
+	{
+		AfxMessageBox(errStr.c_str());
+		((CEdit*)GetDlgItem(IDC_STATIC_STATUS))->SetWindowTextA(errStr.c_str());
+	}
+	else 
+	{
+		((CEdit*)GetDlgItem(IDC_STATIC_STATUS))->SetWindowTextA("设备网络适配器获取成功。。。");
+		for (size_t i = 0; i < vecDevsList.size(); i++)
+		{
+			m_combo_adapter.AddString(vecDevsList.at(i).c_str());
+		}
+	}
+	m_combo_adapter.SetCurSel(0);
+
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
 
@@ -228,10 +264,7 @@ string get_path() {
 	ofn.hwndOwner = NULL;
 	ofn.lpstrFile = (LPSTR)szFile;
 	ofn.lpstrFile[0] = '\0';
-	LPTSTR        lpstrCustomFilter;
-	DWORD         nMaxCustFilter;
 	ofn.nFilterIndex = 1;
-	LPTSTR        lpstrFile;
 	ofn.nMaxFile = sizeof(szFile);
 	ofn.lpstrFilter = "xml file(*.xml)\0*.xml\0ALL file(*.*)\0*.*\0\0";;
 	ofn.lpstrFileTitle = NULL;
@@ -372,10 +405,42 @@ map<string, map<string, string>> mapFeedbackMessage = {
 void CCallStationXmlAnalysisDlg::OnBnClickedButtonParser()
 {
 	CString outmsg,inputXml,inputPath;
+	CString strType;
+	m_combo_procotol.GetWindowText(strType);
 	m_edit_browse.GetWindowText(inputPath);
 	TiXmlDocument *mydoc = new TiXmlDocument();
-	m_myedit_xmlInput.GetWindowText(inputXml);
+	inputXml = "";
+	VecString vecRecvMsg;
+	if (net.getClientRecvLength() > 0 && "TCP Client" == strType)
+	{
+		vecRecvMsg = net.getClientRecvStr();
+		inputXml = vecRecvMsg[selectIndex].c_str();
+		ITC_WriteLog(LOG_LEVEL_INFO,"TCP Client inputxml - %s", inputXml);
+		if (inputXml == "")
+		{
+			return;
+		}
+	}
+	else if(netPacket.getPacketDataLen() > 0 && "抓包" == strType)
+	{
+		vecRecvMsg = netPacket.getPacketData();
+		inputXml = vecRecvMsg[selectIndex].c_str();
+		ITC_WriteLog(LOG_LEVEL_INFO, "抓包inputxml - %s", inputXml);
+		if (inputXml == "")
+		{
+			return;
+		}
+	}
+	else
+	{
+		m_myedit_xmlInput.GetWindowText(inputXml);
+	}
+
+	inputXml = transcoding2utf8(inputXml.GetBuffer()).c_str();
+	inputXml.ReleaseBuffer();
+
 	mydoc->Parse(inputXml.GetBuffer());
+	inputXml.ReleaseBuffer();
 	if (mydoc->Error())
 	{
 		CString errorLog;
@@ -383,7 +448,6 @@ void CCallStationXmlAnalysisDlg::OnBnClickedButtonParser()
 		m_edit_log.SetWindowText(errorLog);
 		return;
 	}
-	inputXml.ReleaseBuffer();
 	((CEdit*)GetDlgItem(IDC_EDIT_INFO))->SetWindowTextA("");
 	TiXmlElement *MsgElement = mydoc->RootElement();	//根元素, MSG
 	//TiXmlElement *pEle = MsgElement;
@@ -407,7 +471,16 @@ void CCallStationXmlAnalysisDlg::OnBnClickedButtonParser()
 			iter = mapTagExplain.find(sonElement->Value());
 			if (iter != mapTagExplain.end())
 			{
-				
+				//string childStr = childValue.GetBuffer();
+				//childValue.ReleaseBuffer();
+				//if (IncludeChinese((char*)childStr.c_str()))
+				//{
+				//	outmsg.Format("%s : %s\r\n", iter->second.c_str(), transcoding2utf8((char*)childStr.c_str()));
+				//}
+				//else
+				//{
+				//	outmsg.Format("%s : %s\r\n", iter->second.c_str(), childValue);
+				//}
 				outmsg.Format("%s : %s\r\n", iter->second.c_str(), childValue);
 				printLog(outmsg);
 			}
@@ -419,6 +492,16 @@ void CCallStationXmlAnalysisDlg::OnBnClickedButtonParser()
 				if (iter != mapTagExplain.end())
 				{
 					CString childValue1 = sonSonElement->FirstChild()->Value();
+					//string childStr = childValue1.GetBuffer();
+					//childValue1.ReleaseBuffer();
+					//if (IncludeChinese((char*)childStr.c_str()))
+					//{
+					//	outmsg.Format("%s : %s\r\n", iter->second.c_str(), transcoding2utf8((char*)childStr.c_str()));
+					//}
+					//else
+					//{
+					//	outmsg.Format("%s : %s\r\n", iter->second.c_str(), childValue1);
+					//}
 					outmsg.Format("└%s : %s\r\n", iter->second.c_str(), childValue1);
 					printLog(outmsg);
 				}
@@ -542,10 +625,11 @@ void CCallStationXmlAnalysisDlg::OnEnChangeEditInpxml()
 
 void CCallStationXmlAnalysisDlg::OnBnClickedButtonTcpconnect()
 {
-	CString strType, strIp, strPort;
+	CString strType, strIp, strPort, strAdapter;
 	m_combo_procotol.GetWindowText(strType);
 	m_combo_ip.GetWindowText(strIp);
 	m_combo_port.GetWindowText(strPort);
+	m_combo_adapter.GetWindowTextA(strAdapter);
 	CString connectStaus;
 	m_button_tcpConnect.GetWindowTextA(connectStaus);
 	bool isConnect = false;
@@ -560,22 +644,45 @@ void CCallStationXmlAnalysisDlg::OnBnClickedButtonTcpconnect()
 
 	if ("TCP Client" == strType)
 	{
+		ITC_WriteLog(LOG_LEVEL_INFO, "TCP Client");
 		if (isConnect)//已连接，要断开
 		{
 			net.tcpClientClose();
 			m_button_tcpConnect.SetWindowTextA("连接");
+			KillTimer(1);
+			((CEdit*)GetDlgItem(IDC_STATIC_STATUS))->SetWindowTextA("");
+			m_combo_procotol.EnableWindow(true);
+			m_combo_ip.EnableWindow(true);
+			m_combo_port.EnableWindow(true);
 		}
 		else//已断开，要连接
 		{
+
 			int ret = net.tcpCilentConect(strIp, atoi(strPort));
 			m_button_tcpConnect.SetWindowTextA("断开");
+			
 			if (ret == 1)//连接失败
 			{
+				CString errorStr;
 				for (size_t i = 0; i < net.getExceptionLength(); i++)
 				{
-					m_edit_log.SetWindowTextA(net.getExceptionStr().at(i).c_str());
+					//m_edit_log.SetWindowTextA(net.getExceptionStr().at(i).c_str());
+					errorStr = net.getExceptionStr().at(i).c_str();
 				}
 				m_button_tcpConnect.SetWindowTextA("连接");
+				((CEdit*)GetDlgItem(IDC_STATIC_STATUS))->SetWindowTextA("连接失败\r\n" + errorStr);
+				m_combo_procotol.EnableWindow(true);
+				m_combo_ip.EnableWindow(true);
+				m_combo_port.EnableWindow(true);
+			}
+			else
+			{
+				SetTimer(1, 500, NULL);
+				g_CINI.addIpAndPortToIni(strIp.GetBuffer(), strPort.GetBuffer());
+				((CEdit*)GetDlgItem(IDC_STATIC_STATUS))->SetWindowTextA("连接成功");
+				m_combo_procotol.EnableWindow(false);
+				m_combo_ip.EnableWindow(false);
+				m_combo_port.EnableWindow(false);
 			}
 
 		}
@@ -583,22 +690,82 @@ void CCallStationXmlAnalysisDlg::OnBnClickedButtonTcpconnect()
 	} 
 	else if ("TCP Server" == strType)
 	{
+		ITC_WriteLog(LOG_LEVEL_INFO, "TCP Server");
 		if (isConnect)//已连接，要断开
 		{
 			m_button_tcpConnect.SetWindowTextA("连接");
 			net.tcpServerClose();
+			m_combo_procotol.EnableWindow(true);
+			m_combo_ip.EnableWindow(true);
+			m_combo_port.EnableWindow(true);
 			KillTimer(1);
+			((CEdit*)GetDlgItem(IDC_STATIC_STATUS))->SetWindowTextA("");
 		}
 		else//已断开，要连接
 		{
 			m_button_tcpConnect.SetWindowTextA("断开");
 			net.tcpServerOpen(atoi(strPort));
 			g_CINI.addIpAndPortToIni("localhost", strPort.GetBuffer());
+			((CEdit*)GetDlgItem(IDC_STATIC_STATUS))->SetWindowTextA("服务开启");
+			m_combo_procotol.EnableWindow(false);
+			m_combo_ip.EnableWindow(false);
+			m_combo_port.EnableWindow(false);
 			SetTimer(1, 500, NULL);
 		}
 	}
+	else if ("抓包" == strType)
+	{
 
+		if (isConnect)//已连接，要断开
+		{
+			netPacket.packetStop();
+			m_button_tcpConnect.SetWindowTextA("连接");
+			m_combo_procotol.EnableWindow(true);
+			m_combo_ip.EnableWindow(true);
+			m_combo_port.EnableWindow(true);
+			m_combo_adapter.EnableWindow(true);
+			KillTimer(1);
+			KillTimer(2);
+			((CEdit*)GetDlgItem(IDC_STATIC_STATUS))->SetWindowTextA("");
+		}
+		else//已断开，要连接
+		{
+			ITC_WriteLog(LOG_LEVEL_INFO, "抓包");
+			Sleep(5);
+			CString strFilter;
+			string errStr;
+			strFilter.Format("src host %s and port %s", strIp, strPort);
+			//strFilter.Format("ip", strIp, strPort);
+			if (-1 == netPacket.openPacket(strAdapter.GetBuffer(), strFilter.GetBuffer(), (char*)errStr.c_str()))
+			{
+				((CEdit*)GetDlgItem(IDC_STATIC_STATUS))->SetWindowTextA(errStr.c_str());
+				m_button_tcpConnect.SetWindowTextA("连接");
+				m_combo_procotol.EnableWindow(true);
+				m_combo_ip.EnableWindow(true);
+				m_combo_port.EnableWindow(true);
+				m_combo_adapter.EnableWindow(true);
+			}
+			else
+			{
+				//netPacket.packetStart();
+				
+				SetTimer(1, 10, NULL);
+				SetTimer(2, 2000, NULL);
+				((CEdit*)GetDlgItem(IDC_STATIC_STATUS))->SetWindowTextA("Adapter: " + strAdapter + "\r\nFilter: " + strFilter + "  监听开始。。。");
+				g_CINI.addIpAndPortToIni(strIp.GetBuffer(), strPort.GetBuffer());
+				m_button_tcpConnect.SetWindowTextA("断开");
+				m_combo_procotol.EnableWindow(false);
+				m_combo_ip.EnableWindow(false);
+				m_combo_port.EnableWindow(false);
+				m_combo_adapter.EnableWindow(false);
+			}
+			strFilter.ReleaseBuffer();
+			strAdapter.ReleaseBuffer();
 
+		}
+	}
+	strPort.ReleaseBuffer();
+	strIp.ReleaseBuffer();
 }
 
 void CCallStationXmlAnalysisDlg::printLog(CString logMsg)
@@ -612,19 +779,46 @@ void CCallStationXmlAnalysisDlg::OnBnClickedButton1()
 {
 	// TODO:  在此添加控件通知处理程序代码
 	vecSerRecvInfo.clear();
-
-	vecSerRecvInfo = net.getServerRecvStr();
-	if (net.getServerRecvLength() > 0)
+	int nLen = 0;
+	CString strType;
+	m_combo_procotol.GetWindowText(strType);
+	if ("抓包" == strType)
 	{
-		 m_listControl_history.DeleteAllItems();
-		for (size_t i = 0; i < net.getServerRecvLength(); i++){
+		vecSerRecvInfo = netPacket.getPacketData();
+		nLen = netPacket.getPacketDataLen();
+	}
+	else 
+	{
+		switch (net.getCurrentType())
+		{
+		case TCPSERVER:
+			vecSerRecvInfo = net.getServerRecvStr();
+			nLen = net.getServerRecvLength();
+
+			break;
+		case TCPCLIENT:
+			vecSerRecvInfo = net.getClientRecvStr();
+			nLen = net.getClientRecvLength();
+			break;
+		default:
+
+			break;
+		}
+
+	}
+
+	if (nLen > 0)
+	{
+		m_listControl_history.DeleteAllItems();
+		for (size_t i = 0; i < nLen; i++) {
 			CString strMsgId = "";
-			strMsgId.Format("%02d", i+1);
+			strMsgId.Format("%02d", i + 1);
 			m_listControl_history.InsertItem(i, strMsgId);
 			m_listControl_history.SetItemText(i, 1, vecSerRecvInfo.at(i).c_str());
+			m_listControl_history.SetItemText(i, 1, transcoding2utf8((char*)vecSerRecvInfo.at(i).c_str()).c_str());
 		}
 	}
-	UpdateWindow();
+	//UpdateWindow();
 }
 
 
@@ -645,7 +839,11 @@ void CCallStationXmlAnalysisDlg::OnNMDblclkListHistory(NMHDR *pNMHDR, LRESULT *p
 
 	str = str + m_listControl_history.GetItemText(nIndex, 1);
 	m_myedit_xmlInput.SetWindowText(_T(""));
+	//CString utf8Code = transcoding2utf8(str.GetBuffer()).c_str();
+	//str.ReleaseBuffer();
 	m_myedit_xmlInput.SetWindowText(str);
+	selectIndex = nIndex;
+	ITC_WriteLog(LOG_LEVEL_INFO, "set nIndex: %d", selectIndex);
 	OnBnClickedButtonParser();
 }
 
@@ -655,11 +853,54 @@ void CCallStationXmlAnalysisDlg::OnNMDblclkListHistory(NMHDR *pNMHDR, LRESULT *p
 void CCallStationXmlAnalysisDlg::OnTimer(UINT_PTR nIDEvent)
 {
 	// TODO:  在此添加消息处理程序代码和/或调用默认值
-	if (net.getServerRecvLength() > lastNum || (net.getServerRecvLength() == 0))
-	{
-		OnBnClickedButton1();
-		lastNum = net.getServerRecvLength();
-	}
 
+	if (nIDEvent == 1)
+	{
+
+		char chTemp[1024] = {0};
+		CString strType;
+		m_combo_procotol.GetWindowText(strType);
+		if ("抓包" == strType)
+		{
+			netPacket.packetGetData();
+
+		}
+		else
+		{
+			switch (net.getCurrentType())
+			{
+			case TCPSERVER:
+		
+				if (net.getServerRecvLength() > lastNum || (net.getServerRecvLength() == 0))
+				{
+					OnBnClickedButton1();
+					lastNum = net.getServerRecvLength();
+				}
+				break;
+			case TCPCLIENT:
+				net.clientReceiveMsg(chTemp);
+				if (net.getClientRecvLength() > lastNum || (net.getClientRecvLength() == 0))
+				{
+					OnBnClickedButton1();
+					lastNum = net.getClientRecvLength();
+				}
+				break;
+			default:
+
+				break;
+			}
+
+		}
+	}
+	else if (nIDEvent == 2)
+	{
+		if (netPacket.getPacketDataLen() > lastNum || (netPacket.getPacketDataLen() == 0))
+		{
+			OnBnClickedButton1();
+			lastNum = netPacket.getPacketDataLen();
+		}
+	}
 	CDialogEx::OnTimer(nIDEvent);
 }
+
+

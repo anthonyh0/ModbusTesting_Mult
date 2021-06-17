@@ -38,7 +38,11 @@ using namespace std;
 const int RECV_BUF_SIZE = 64 * 1024;
 const int SEND_BUF_SIZE = 64 * 1024;
 
-
+enum proType {
+	TCPSERVER,
+	TCPCLIENT,
+	PACKET
+};
 class NetWorkManage
 {
 public:
@@ -47,30 +51,43 @@ public:
 
 	int tcpServerOpen(int port);
 	void tcpServerClose();
+
 	int tcpCilentConect(const char *ip, int port);
 	int clientSendMsg(const void* buf, int sengLen);
 	int clientReceiveMsg(void *buf);
 	void tcpClientClose();
+
 	int getExceptionLength();
 	int getClientRecvLength();
 	int getServerRecvLength();
-	std::string getClientRecvStr();
-	VecString getServerRecvStr();
 	bool handleServerRecvInfo(std::string info);
 	void setClientRecvStr(std::string recvStr);
 	void setServerRecvStr(std::string recvStr);
+	int getCurrentType();
+	void cleanClientRecvStr();
+	void cleanServerRecvStr();
+	void setServerAddr(std::string addr);
+	std::string getServerAddr();
+	VecString getClientRecvStr();
+	VecString getServerRecvStr();
 	VecString getExceptionStr();
 
 public:
 	static std::string stServerRecv;
 	static std::string stSurplus;
 	static VecString vecSerRecvInfo;
+	static VecString vecCliRecvInfo;
 	static VecString vecException;
+	static int procolType;
+	static StreamSocket ss;
+	//static Poco::Net::TCPServer* serverPri;
 private:
-	StreamSocket ss;
+	//StreamSocket ss;
+	std::string serverAddr;
 	Poco::Net::TCPServer *serverPri;
 	std::string  serverRecv;
 	std::string  clientRecv;
 	mutex m_mutexHandleRecv;
+
 	CCriticalSection g_UpdateData;
 };

@@ -17,8 +17,15 @@
 #include <direct.h> //_mkdir函数的头文件
 #include <io.h>     //_access函数的头文件
 #include <windows.h>
-#pragma comment(lib, "mpr.lib")
+#include "SysLogs.h"
 #include <Winnetwk.h>
+#include <WinSock2.h>
+#include <Iphlpapi.h>
+#include <iostream>
+#include "afxdialogex.h"
+
+#pragma comment(lib,"Iphlpapi.lib") //需要添加Iphlpapi.lib库
+#pragma comment(lib, "mpr.lib")
 using std::vector;
 typedef vector<std::string> VecString;
 typedef unsigned char  uint8_t;
@@ -40,8 +47,19 @@ typedef unsigned char  uint8_t;
 	}  
 #else   
     static void __dbg_printf (const char * format,...) {}   
-#endif    
+#endif  
 
+struct NetConfig
+{
+	int networkCardNum; //ID
+	std::string netWorkCardName; //网卡名称
+	std::string netWorkCardDescription; //网卡描述
+	std::string netWorkCardType; //网卡类型
+	std::string netWorkMac; //网卡MAC地址
+	std::string ipAddress; //IP地址
+	std::string subnetMask; //子网掩码
+	std::string gateway; //网关
+};
 
 int				Asc2Hex(char *Dest,char *Src,int SrcLen);   // Asscii -> Hex
 int				Hex2Asc(char *Dest,char *Src,int SrcLen);	 // Hex -> Asscii
@@ -56,6 +74,7 @@ void			GBK2Utf(CString &buffer);  //UNICODE动转换UTF-8
 CString			DeleteIllegalChar(CString indata);      //删除不可见字符
 CString			StrSwap(CString  indata);
 CString			getCurrentPath();
+//std::string		getCurrentPath_string();
 vector<CString> split(CString str,CString pattern);
 
 BOOL			ConnectIPC(const char* IP, const char* path, const char* User, const char* PassWord);
@@ -66,8 +85,8 @@ BOOL			IsHexString(const char* str);
 
 int				XH_EncodeBase64(char *pASCSrc,char *pBase64Res);
 int				XH_DecodeBase64(char *pBase64Src,char *pASCRes);
-int				XH_WriteLog(int _level_, int statnum, LPCTSTR Errinfo, ...);  //写日志函数
-
+int				ITC_WriteLog(int _level_, LPCTSTR Errinfo, ...);  //写日志函数
+int				initializeLog(char* szpath);
 //new
 bool			isdigit(const std::string& sSrc);
 std::string		trim_left(std::string& sSrc, const std::string& sDrop = " ");
@@ -92,7 +111,6 @@ bool			Remove80(std::string &sSrc);
 std::string		getXHRandom(int inum);
 std::string		MakeXOR(const char *ch);
 void			StrToHex(unsigned char *bcd, const char *asc, int str_len);
-//
 void			SplitString(const std::string& s, std::vector< std::string >& ret, const std::string& delim);
 bool			CompareFileExt(const char* sFile, const char* ext);
 std::string		swapstring(const std::string buf);
@@ -124,5 +142,7 @@ std::string		UnicodeToAnsi(const wchar_t* buf);
 std::wstring	Utf8ToUnicode(const char* buf); //英文 UTF8编码（"well" -> 77656C6C）
 std::string		UnicodeToUtf8(const wchar_t* buf);
 int				IncludeChinese(char *str);
-CString			GetGmtTime();
+CString			GetGmtTime(); //yyyy-mm-dd hh:MM:ss
+vector<NetConfig> GetNetworkConfig();//获取网卡信息
+std::string		get_pathOnDla(std::string filter);//打开对话窗口选择文件
 #endif // !defined(AFX_PUBLICFUNDEF_H__66CA3927_EBD6_460A_A2C8_0DF9CEA039A4__INCLUDED_)
