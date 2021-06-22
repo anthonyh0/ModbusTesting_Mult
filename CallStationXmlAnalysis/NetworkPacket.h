@@ -23,6 +23,7 @@ public:
 	void setDevs(std::string strDevs);
 	std::vector<std::string> getDevs();
 	int openPacket(char* devsName, char* packetFilter, char* errbuf);//打开抓包，设置过滤器，返回状态return -1 ：表示获取失败
+	int openPacket(int devsIndex, char* packetFilter, char* errbuf);//打开抓包，设置过滤器，返回状态return -1 ：表示获取失败
 	int packetStart();
 	int packetStop();
 	void packetGetData();
@@ -35,7 +36,7 @@ private:
 	struct bpf_program fcode;
 	struct pcap_pkthdr* header;
 	const u_char* pkt_data;
-	//pcap_if_t* alldevs;
+	pcap_if_t* alldevs;
 	pcap_if_t* pDevs;
 	pcap_t* adhandle;
 	u_int uintNetmask;

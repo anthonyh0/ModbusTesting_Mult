@@ -1,6 +1,5 @@
 #include "NetworkPacket.h"
 
-
 NetworkPacket::NetworkPacket()
 {
     //isdevs = false;
@@ -10,22 +9,22 @@ NetworkPacket::NetworkPacket()
 
 NetworkPacket::~NetworkPacket()
 {
-    //vecPacketData.clear();
-    //vector<std::string>().swap(vecPacketData);
+    vecPacketData.clear();
+    vector<std::string>().swap(vecPacketData);
 
-    //vecDevs.clear();
-    //vector<std::string>().swap(vecDevs);
+    vecDevs.clear();
+    vector<std::string>().swap(vecDevs);
 
-    ///* 释放设备列表 */
-    //if (devsCount != 0)
-    //{
-	   // pcap_freealldevs(alldevs);
-    //}
+    /* 释放设备列表 */
+    if (devsCount != 0)
+    {
+	    pcap_freealldevs(alldevs);
+    }
 }
 
 int NetworkPacket::findAllDevs(std::vector<std::string> &vecDevs, char* errbuf)
 {
-    pcap_if_t* alldevs;
+    //pcap_if_t* alldevs;
     /* 获取本机设备列表 */
     if (pcap_findalldevs_ex((char*)PCAP_SRC_IF_STRING, NULL, &alldevs, errbuf) == -1)
     {
@@ -73,23 +72,23 @@ std::vector<std::string> NetworkPacket::getDevs()
 
 int NetworkPacket::openPacket(char* devsName, char* packetFilter, char* errbuf)
 {
-    pcap_if_t* alldevs;
-    /* 获取本机设备列表 */
-    if (pcap_findalldevs_ex((char*)PCAP_SRC_IF_STRING, NULL, &alldevs, errbuf) == -1)
-    {
-        //fprintf(stderr, "Error in pcap_findalldevs: %s\n", errbuf);
-        return WRONGNUM;
-    }
+
+    ///* 获取本机设备列表 */
+    //if (pcap_findalldevs_ex((char*)PCAP_SRC_IF_STRING, NULL, &alldevs, errbuf) == -1)
+    //{
+    //    //fprintf(stderr, "Error in pcap_findalldevs: %s\n", errbuf);
+    //    return WRONGNUM;
+    //}
     /* 跳转到已选中的适配器 */
     int i = 0;
-    for (i = 0, pDevs = alldevs; i < devsCount; pDevs = pDevs->next, i++)
+    for (i = 0, pDevs = alldevs; i < devsCount-1; pDevs = pDevs->next, i++)
     {
         if (pDevs->name == NULL)
         {
             memset(errbuf, 0x00, sizeof(errbuf));
             strcat(errbuf, "No matching adapter found.");
             /* 释放设备列表 */
-            pcap_freealldevs(alldevs);
+            //pcap_freealldevs(alldevs);
             return WRONGNUM;
         }
         else if (strcmp(devsName, pDevs->description) == 0)
@@ -110,10 +109,10 @@ int NetworkPacket::openPacket(char* devsName, char* packetFilter, char* errbuf)
         errbuf            // 错误缓冲池
     )) == NULL)
     {
-        fprintf(stderr, "\nUnable to open the adapter. %s is not supported by WinPcap\n", pDevs->name);
+        //fprintf(stderr, "\nUnable to open the adapter. %s is not supported by WinPcap\n", pDevs->name);
 
         /* 释放设列表 */
-        pcap_freealldevs(alldevs);
+        //pcap_freealldevs(alldevs);
         ITC_WriteLog(LOG_LEVEL_INFO, "Unable to open the adapter. %s is not supported by WinPcap", pDevs->name);
         return WRONGNUM;
     }
@@ -136,7 +135,7 @@ int NetworkPacket::openPacket(char* devsName, char* packetFilter, char* errbuf)
             strcat(errbuf, "Error setting the filter.");
             ITC_WriteLog(LOG_LEVEL_INFO, "%s", errbuf);
             /* 释放设备列表 */
-            pcap_freealldevs(alldevs);
+            //pcap_freealldevs(alldevs);
             return WRONGNUM;
         }
     }
@@ -147,12 +146,86 @@ int NetworkPacket::openPacket(char* devsName, char* packetFilter, char* errbuf)
         ITC_WriteLog(LOG_LEVEL_INFO, "Error setting the filter.");
         //fprintf(stderr, "\nError setting the filter.\n");
         /* 释放设备列表 */
-        pcap_freealldevs(alldevs);
+        //pcap_freealldevs(alldevs);
         return WRONGNUM;
     }
 
     /* 释放设备列表 */
-    pcap_freealldevs(alldevs);
+    //pcap_freealldevs(alldevs);
+    return 0;
+}
+
+int NetworkPacket::openPacket(int devsIndex, char* packetFilter, char* errbuf)
+{
+    //pcap_if_t* alldevs;
+    ///* 获取本机设备列表 */
+    //if (pcap_findalldevs_ex((char*)PCAP_SRC_IF_STRING, NULL, &alldevs, errbuf) == -1)
+    //{
+    //    //fprintf(stderr, "Error in pcap_findalldevs: %s\n", errbuf);
+    //    return WRONGNUM;
+    //}
+    /* 跳转到已选中的适配器 */
+    int i = 0;
+    for (i = 0, pDevs = alldevs; i < devsIndex; pDevs = pDevs->next, i++);
+
+    ITC_WriteLog(LOG_LEVEL_INFO, "当前打开名称：%s", pDevs->name);
+    ITC_WriteLog(LOG_LEVEL_INFO, "当前打开描述：%s", pDevs->description);
+    /* 打开设备 */
+    if ((adhandle = pcap_open(
+        pDevs->name,          // 设备名
+        65536,            // 要捕捉的数据包的部分 
+                          // 65535保证能捕获到不同数据链路层上的每个数据包的全部内容
+        PCAP_OPENFLAG_PROMISCUOUS,    // 混杂模式
+        1000,             // 读取超时时间
+        NULL,             // 远程机器验证
+        errbuf            // 错误缓冲池
+    )) == NULL)
+    {
+        //fprintf(stderr, "\nUnable to open the adapter. %s is not supported by WinPcap\n", pDevs->name);
+
+        /* 释放设列表 */
+        //pcap_freealldevs(alldevs);
+        ITC_WriteLog(LOG_LEVEL_INFO, "Unable to open the adapter. %s is not supported by WinPcap", pDevs->name);
+        return WRONGNUM;
+    }
+
+    ITC_WriteLog(LOG_LEVEL_INFO, "打开成功：%s(%s)", pDevs->name, pDevs->description);
+    /* 设置过滤器 */
+    if (pDevs->addresses != NULL)
+        /* 获取接口第一个地址的掩码 */
+        uintNetmask = ((struct sockaddr_in*)(pDevs->addresses->netmask))->sin_addr.S_un.S_addr;
+    else
+        /* 如果这个接口没有地址，那么我们假设这个接口在C类网络中 */
+        uintNetmask = 0xffffff;
+    ITC_WriteLog(LOG_LEVEL_INFO, "获取接口第一个地址的掩码：%d", uintNetmask);
+    ITC_WriteLog(LOG_LEVEL_INFO, "设置过滤器：%s", packetFilter);
+    if (pcap_compile(adhandle, &fcode, packetFilter, 1, uintNetmask) >= 0)
+    {
+        //设置过滤器
+        if (pcap_setfilter(adhandle, &fcode) < 0)
+        {
+            //fprintf(stderr, "\nError setting the filter.\n");
+            memset(errbuf, 0x00, sizeof(errbuf));
+            strcat(errbuf, "Error setting the filter.");
+            ITC_WriteLog(LOG_LEVEL_INFO, "%s", errbuf);
+            /* 释放设备列表 */
+            //pcap_freealldevs(alldevs);
+            return WRONGNUM;
+        }
+    }
+    else
+    {
+        memset(errbuf, 0x00, sizeof(errbuf));
+        strcat(errbuf, "Error setting the filter.");
+        ITC_WriteLog(LOG_LEVEL_INFO, "Error setting the filter.");
+        //fprintf(stderr, "\nError setting the filter.\n");
+        /* 释放设备列表 */
+        //pcap_freealldevs(alldevs);
+        return WRONGNUM;
+    }
+    ITC_WriteLog(LOG_LEVEL_INFO, "设置过滤器完成");
+    /* 释放设备列表 */
+    //pcap_freealldevs(alldevs);
     return 0;
 }
 
@@ -211,11 +284,7 @@ void NetworkPacket::packetGetData()
             CString recvTemp;
             recvTemp.Format("%.2x ", pkt_data[i - 1]);
             strRecvData.Append(recvTemp);
-            //printf("%.2x ", pkt_data[i - 1]);
-            //if (pkt_data[i - 1] == 0x7e)
-            //{
-            //    printf("==找到了后五位数据是,%.2x %.2x %.2x %.2x %.2x\n", pkt_data[i], pkt_data[i + 1], pkt_data[i + 2], pkt_data[i + 3], pkt_data[i + 4]);
-            //}
+
         }
 
         ITC_WriteLog(LOG_LEVEL_INFO, "%s", strRecvData);

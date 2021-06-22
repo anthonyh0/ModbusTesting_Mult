@@ -132,7 +132,7 @@ BOOL CCallStationXmlAnalysisDlg::OnInitDialog()
 	m_ToolTip.AddTool(GetDlgItem(IDC_EDIT_INPXML), _T("[可拖动XML文件到这]"));
 
 	m_combo_procotol.ResetContent();
-	m_combo_procotol.AddString("抓包");
+	m_combo_procotol.AddString("Packet");
 	m_combo_procotol.AddString("TCP Server");
 	m_combo_procotol.AddString("TCP Client");
 	m_combo_procotol.SetCurSel(0);
@@ -170,11 +170,13 @@ BOOL CCallStationXmlAnalysisDlg::OnInitDialog()
 	ITC_WriteLog(LOG_LEVEL_INFO, "------------------------------------------------------------");
 
 	std::vector<std::string> vecDevsList;
-	string errStr = "";
-	if (-1 == netPacket.findAllDevs(vecDevsList, (char*)errStr.c_str()))
+	char err[1024 * 6] = { 0 };
+	if (-1 == netPacket.findAllDevs(vecDevsList, err))
 	{
-		AfxMessageBox(errStr.c_str());
-		((CEdit*)GetDlgItem(IDC_STATIC_STATUS))->SetWindowTextA(errStr.c_str());
+		CString errStr;
+		errStr.Format("%s", err);
+		AfxMessageBox(errStr);
+		((CEdit*)GetDlgItem(IDC_STATIC_STATUS))->SetWindowTextA(errStr);
 	}
 	else 
 	{
@@ -421,7 +423,7 @@ void CCallStationXmlAnalysisDlg::OnBnClickedButtonParser()
 			return;
 		}
 	}
-	else if(netPacket.getPacketDataLen() > 0 && "抓包" == strType)
+	else if(netPacket.getPacketDataLen() > 0 && "Packet" == strType)
 	{
 		vecRecvMsg = netPacket.getPacketData();
 		inputXml = vecRecvMsg[selectIndex].c_str();
@@ -626,10 +628,13 @@ void CCallStationXmlAnalysisDlg::OnEnChangeEditInpxml()
 void CCallStationXmlAnalysisDlg::OnBnClickedButtonTcpconnect()
 {
 	CString strType, strIp, strPort, strAdapter;
+	int adapterIndex = 0;
 	m_combo_procotol.GetWindowText(strType);
 	m_combo_ip.GetWindowText(strIp);
 	m_combo_port.GetWindowText(strPort);
 	m_combo_adapter.GetWindowTextA(strAdapter);
+	adapterIndex = m_combo_adapter.GetCurSel();
+	ITC_WriteLog(LOG_LEVEL_INFO, "adapter Index:%d", adapterIndex);
 	CString connectStaus;
 	m_button_tcpConnect.GetWindowTextA(connectStaus);
 	bool isConnect = false;
@@ -713,7 +718,7 @@ void CCallStationXmlAnalysisDlg::OnBnClickedButtonTcpconnect()
 			SetTimer(1, 500, NULL);
 		}
 	}
-	else if ("抓包" == strType)
+	else if ("Packet" == strType)
 	{
 
 		if (isConnect)//已连接，要断开
@@ -730,15 +735,25 @@ void CCallStationXmlAnalysisDlg::OnBnClickedButtonTcpconnect()
 		}
 		else//已断开，要连接
 		{
+			
 			ITC_WriteLog(LOG_LEVEL_INFO, "抓包");
-			Sleep(5);
+			//Sleep(5);
 			CString strFilter;
-			string errStr;
-			strFilter.Format("src host %s and port %s", strIp, strPort);
-			//strFilter.Format("ip", strIp, strPort);
-			if (-1 == netPacket.openPacket(strAdapter.GetBuffer(), strFilter.GetBuffer(), (char*)errStr.c_str()))
+			char errStr[1024 * 6] = {0};
+			if (strIp == "" && strPort == "")
 			{
-				((CEdit*)GetDlgItem(IDC_STATIC_STATUS))->SetWindowTextA(errStr.c_str());
+				strFilter = "";
+			}
+			else
+			{
+				strFilter.Format("src host %s and port %s", strIp, strPort);
+			}
+
+
+			if (-1 == netPacket.openPacket(adapterIndex, strFilter.GetBuffer(), errStr))
+			{
+				((CEdit*)GetDlgItem(IDC_STATIC_STATUS))->SetWindowTextA(errStr);
+				ITC_WriteLog(LOG_LEVEL_INFO, "%s",errStr);
 				m_button_tcpConnect.SetWindowTextA("连接");
 				m_combo_procotol.EnableWindow(true);
 				m_combo_ip.EnableWindow(true);
@@ -747,25 +762,27 @@ void CCallStationXmlAnalysisDlg::OnBnClickedButtonTcpconnect()
 			}
 			else
 			{
-				//netPacket.packetStart();
-				
-				SetTimer(1, 10, NULL);
-				SetTimer(2, 2000, NULL);
-				((CEdit*)GetDlgItem(IDC_STATIC_STATUS))->SetWindowTextA("Adapter: " + strAdapter + "\r\nFilter: " + strFilter + "  监听开始。。。");
-				g_CINI.addIpAndPortToIni(strIp.GetBuffer(), strPort.GetBuffer());
+				  //netPacket.packetStart();
+				ITC_WriteLog(LOG_LEVEL_INFO, "设置/开启定时器1,2");
+				SetTimer(1, 100, NULL);
+				SetTimer(2, 3000, NULL);
+				ITC_WriteLog(LOG_LEVEL_INFO, "设置/开启定时器1,2完成");
 				m_button_tcpConnect.SetWindowTextA("断开");
+				((CEdit*)GetDlgItem(IDC_STATIC_STATUS))->SetWindowTextA("Adapter: " + strAdapter + "\r\nFilter: " + strFilter + ",  监听开始。。。");
+				g_CINI.addIpAndPortToIni(strIp.GetBuffer(), strPort.GetBuffer());
 				m_combo_procotol.EnableWindow(false);
 				m_combo_ip.EnableWindow(false);
 				m_combo_port.EnableWindow(false);
 				m_combo_adapter.EnableWindow(false);
 			}
 			strFilter.ReleaseBuffer();
-			strAdapter.ReleaseBuffer();
-
+			//strAdapter.ReleaseBuffer();
+			
 		}
 	}
 	strPort.ReleaseBuffer();
 	strIp.ReleaseBuffer();
+	ITC_WriteLog(LOG_LEVEL_INFO, "连接-结束");
 }
 
 void CCallStationXmlAnalysisDlg::printLog(CString logMsg)
@@ -777,13 +794,15 @@ void CCallStationXmlAnalysisDlg::printLog(CString logMsg)
 
 void CCallStationXmlAnalysisDlg::OnBnClickedButton1()
 {
+
 	// TODO:  在此添加控件通知处理程序代码
 	vecSerRecvInfo.clear();
 	int nLen = 0;
 	CString strType;
 	m_combo_procotol.GetWindowText(strType);
-	if ("抓包" == strType)
+	if ("Packet" == strType)
 	{
+		ITC_WriteLog(LOG_LEVEL_INFO, "更新Packet接收列表。。。");
 		vecSerRecvInfo = netPacket.getPacketData();
 		nLen = netPacket.getPacketDataLen();
 	}
@@ -853,17 +872,15 @@ void CCallStationXmlAnalysisDlg::OnNMDblclkListHistory(NMHDR *pNMHDR, LRESULT *p
 void CCallStationXmlAnalysisDlg::OnTimer(UINT_PTR nIDEvent)
 {
 	// TODO:  在此添加消息处理程序代码和/或调用默认值
-
 	if (nIDEvent == 1)
 	{
 
 		char chTemp[1024] = {0};
 		CString strType;
 		m_combo_procotol.GetWindowText(strType);
-		if ("抓包" == strType)
+		if ("Packet" == strType)
 		{
 			netPacket.packetGetData();
-
 		}
 		else
 		{
