@@ -323,6 +323,11 @@ int CModbusTestingDlg::initStationInfo()
 
 void CModbusTestingDlg::initprotocolInfo()
 {
+
+	m_combo_ip.EnableWindow(true);
+	m_combo_port.EnableWindow(true);
+	m_combo_protocol.EnableWindow(true);
+
 	m_combo_protocol.ResetContent();
 	m_combo_protocol.AddString("TCP Client");
 	m_combo_protocol.SetCurSel(0);
@@ -385,6 +390,9 @@ CString CModbusTestingDlg::printfIpAndPort(std::string ip, std::string port, int
 		resultStr.Format("连接失败！#%s:%s:%d", ip.c_str(), port.c_str(), socket_fd);
 		m_button_connect.SetWindowText("连接");
 		gloIsConnect = disconnectStaus;
+		m_combo_ip.EnableWindow(true);
+		m_combo_port.EnableWindow(true);
+		m_combo_protocol.EnableWindow(true);
 	} 
 	else
 	{
@@ -393,7 +401,10 @@ CString CModbusTestingDlg::printfIpAndPort(std::string ip, std::string port, int
 		m_button_connect.SetWindowText("断开");
 		gloIsConnect = connectStaus;
 		g_CINI.addIpAndPortToIni(ip, port);
-		initprotocolInfo();
+		//initprotocolInfo();
+		m_combo_ip.EnableWindow(false);
+		m_combo_port.EnableWindow(false);
+		m_combo_protocol.EnableWindow(false);
 
 	}
 	printLogFunc(cntStatus, resultStr.GetBuffer());
@@ -512,6 +523,9 @@ void CModbusTestingDlg::OnBnClickedButtonConnect()
 		GetDlgItem(IDC_STATIC_STATUS)->SetWindowText("已断开！！！");
 		printLogFunc(cntStatus, "已断开！！！");
 		socket_fd = 0;
+		m_combo_ip.EnableWindow(true);
+		m_combo_port.EnableWindow(true);
+		m_combo_protocol.EnableWindow(true);
 		return;
 	}
 
@@ -546,12 +560,61 @@ void CModbusTestingDlg::OnBnClickedButtonConnect()
 			AfxMessageBox("Failed to create socket!");
 			return ;
 		}
+		
+		int nTimeout = 1000;
+		//设置发送超时为1000ms
+		if (SOCKET_ERROR == setsockopt(socket_fd, SOL_SOCKET, SO_SNDTIMEO,
+			(char *)&nTimeout, sizeof(int)))
+		{
+			//fprintf(stderr, "Set SO_SNDTIMEO error !\n");
+		}
+		//设置接收超时为1000ms
+		if (SOCKET_ERROR == setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO,
+			(char *)&nTimeout, sizeof(int)))
+		{
+			//fprintf(stderr, "Set SO_RCVTIMEO error !\n");
+		}
+
+		fd_set rfd;      //描述符集 这个将测试连接是否可用
+		struct timeval timeout;  //时间结构体
+		FD_ZERO(&rfd);//先清空一个描述符集
+		FD_SET(socket_fd, &rfd);
+		timeout.tv_sec = 0;//秒
+		timeout.tv_usec = 50000;//一百万分之一秒，微秒
+
+		u_long ul = 1;//代表非阻塞
+		ioctlsocket(socket_fd, FIONBIO, &ul);//设置为非阻塞连接
+
+
+
 		serveraddr.sin_family = AF_INET;
 		serveraddr.sin_port = htons(atoi(strPort));
 		serveraddr.sin_addr.s_addr = inet_addr(strIp); //inet_addr 将字符串转为数字
 		ret = connect(socket_fd,
 			(struct sockaddr *)&serveraddr, //是一个地址
 			sizeof(struct sockaddr));
+
+
+		ret = select(0, 0, &rfd, 0, &timeout);
+		if (ret <= 0)
+		{
+			//超时
+			WSACleanup();
+			closesocket(socket_fd);
+			m_button_connect.SetWindowText("连接");
+			gloIsConnect = disconnectStaus;
+			GetDlgItem(IDC_STATIC_STATUS)->SetWindowText("连接超时！！！");
+			printLogFunc(cntStatus, "连接超时！！！");
+			socket_fd = 0;
+			m_combo_ip.EnableWindow(true);
+			m_combo_port.EnableWindow(true);
+			m_combo_protocol.EnableWindow(true);
+			return;
+		}
+		ul = 0;
+		ioctlsocket(socket_fd, FIONBIO, &ul);
+
+
 		GetDlgItem(IDC_STATIC_STATUS)->SetWindowText(printfIpAndPort(strIp.GetBuffer(), strPort.GetBuffer(), ret));
 		strIp.ReleaseBuffer();
 		strPort.ReleaseBuffer();
@@ -868,6 +931,8 @@ void CModbusTestingDlg::OnBnClickedButtonControlCmd()
 		AfxMessageBox("未进行连接");
 		return;
 	}
+
+
 	/*获取车站编号*/
 	int nIndex = 7, nIndex2 = -1;
 	uint8_t uint8StationList[400];
@@ -919,9 +984,11 @@ void CModbusTestingDlg::OnBnClickedButtonControlCmd()
 	{
 	case 0: //不含有中文
 		utfCode = Utf8ToUnicode(ttsStr);  //英文 UTF8编码（"well" -> 77656C6C）
+		//utfCode = AnsiToUnicode(ttsStr);  //英文 UTF16BE编码（"well" -> 770065006C006C00)
 		for each (auto utfTemp in utfCode)
 		{
-			//uint8Tts[iIndex] = (utfTemp >> 8) & 0x00ff;
+			//uint8Tts[iIndex] = (utfTemp >> 8) & 0x00ff;////
+			//uint8Tts[++iIndex] = utfTemp & 0x00ff;////
 			uint8Tts[iIndex] = utfTemp & 0x00ff;
 			iIndex++;
 		}
