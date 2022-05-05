@@ -376,7 +376,7 @@ int  ITC_WriteLog(int _level_,  LPCTSTR Errinfo, ...)
 	switch (_level_)
 	{
     case LOG_LEVEL_NORMAL:	
-		tmp.Format(":");
+		tmp.Format("[Position:%s, Code line:%d, Function:%s]:", __FILE__, __LINE__, __FUNCTION__);
 		tmp = tmp + " -- " + err;
 		SYSLOG_SETLOGLEVEL_NORMAL;
 		SYSLOG_NORMAL(tmp.GetBuffer(0));	

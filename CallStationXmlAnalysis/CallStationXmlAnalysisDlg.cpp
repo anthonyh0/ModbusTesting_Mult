@@ -120,6 +120,9 @@ BOOL CCallStationXmlAnalysisDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 设置小图标
 
 	// TODO:  在此添加额外的初始化代码
+	initializeLog("xmlAnalysis.log");
+	ITC_WriteLog(LOG_LEVEL_NORMAL, "------------------------------------------------------------");
+
 	m_combo_procotol.EnableWindow(true);
 	m_combo_ip.EnableWindow(true);
 	m_combo_port.EnableWindow(true);
@@ -166,8 +169,7 @@ BOOL CCallStationXmlAnalysisDlg::OnInitDialog()
 
 	selectIndex = 0;
 
-	initializeLog("xmlAnalysis.log");
-	ITC_WriteLog(LOG_LEVEL_INFO, "------------------------------------------------------------");
+
 
 	std::vector<std::string> vecDevsList;
 	char err[1024 * 6] = { 0 };
@@ -358,7 +360,7 @@ BOOL CCallStationXmlAnalysisDlg::PreTranslateMessage(MSG* pMsg)
 map<string, string> mapTagExplain = {
 	{ "MSG", "根标签" }, { "META", "消息头标签" }, { "SNDR", "消息发送者" }, { "DDTM", "发送时间" }, 
 	{ "TYPE", "消息类别" }, { "RECV", "消息接收者" }, { "TIME", "校时时间" },{ "RQAR", "请求分区头标签" }, 
-	{ "RQID", "请求分区消息" }, { "BCAR", "请求分区头标签" }, { "AREA", "单个分区" }, { "CHAN", "输出通道标识" }, 
+	{ "RQID", "请求分区消息ID" }, { "BCAR", "请求分区头标签" }, { "AREA", "单个分区" }, { "CHAN", "输出通道标识" }, 
 	{ "MACR", "请求分区宏ID" }, { "REST", "总分区请求回馈" },{ "REAR", "分区请求回复头标签" }, { "ARST", "单分区请求回馈" }, 
 	{ "SCAR", "播放分区头标签" }, { "RESC", "分区反馈头标签" }, { "CLAR", "分区关闭头标签" }, { "RECL", "分区关闭反馈消息头标签" }, 
 	{ "ITAR", "分区打断消息头标签" },{ "RESN", "打断原因" }, { "RQFL", "航班信息请求消息头标签" }, { "RQTP", "请求种类" }, { "BDGT", "登机口编号" }, 
@@ -402,6 +404,12 @@ map<string, string> mapEvac_evst = {
 map<string, map<string, string>> mapFeedbackMessage = {
 	{ "RERQ", mapRerq_arst }, { "RESC", mapResc_arst }, { "ITAR", mapItar_resn }, { "TVAB", mapIvab_abtp }, { "REIV", mapReiv_abst },
 	{"REBG", mapRebg_ivst}, { "REST", mapRest_stst }, { "EVAC", mapEvac_evst }
+};
+map<string, string> mapMsgType = {
+	{ "KPAL", "保活消息" }, { "REKP", "保活反馈消息" },{ "TSYN", "时钟同步消息" }, { "RQAR", "分区请求消息" },{ "RERQ", "分区请求回馈消息" }, { "SCAR", "分区播放消息" },
+	{ "RESC", "分区播放回馈消息" }, { "CLAR", "分区关闭消息" },{ "RECL", "分区关闭回馈消息" }, { "ITAR", "分区打断消息" },{ "RQFL", "航班信息请求消息" }, { "REFL", "航班信息请求回馈消息" },
+	{ "IVAB", "自动广播调用消息" }, { "REIV", "自动广播调用回馈消息" },{ "STRS", "呼叫存储转发询问消息" }, { "REST", "呼叫存储转发回复消息" },{ "IBGM", "调用背景音消息" }, { "REBG", "调用背景音反馈消息" },
+	{ "EVAC", "火警告知消息" }, { "EDCA", "呼叫宏结束消息" }
 };
 //编译器太卡了，还没有整理代码，比较乱。（2021年5月29日14:09:21）
 void CCallStationXmlAnalysisDlg::OnBnClickedButtonParser()
@@ -455,61 +463,74 @@ void CCallStationXmlAnalysisDlg::OnBnClickedButtonParser()
 	//TiXmlElement *pEle = MsgElement;
 	int nIndex = 1;
 	CString msgType = "";
-	//遍历该结点
-	for (TiXmlElement *StuElement = MsgElement->FirstChildElement();//第一个子元素
-		StuElement != NULL;
-		StuElement = StuElement->NextSiblingElement())//下一个兄弟元素
+
+	try
 	{
-		for (TiXmlElement *sonElement = StuElement->FirstChildElement();
-			sonElement != NULL;
-			sonElement = sonElement->NextSiblingElement())
+
+		//遍历该结点
+		for (TiXmlElement *StuElement = MsgElement->FirstChildElement();//第一个子元素
+			StuElement != NULL;
+			StuElement = StuElement->NextSiblingElement())//下一个兄弟元素
 		{
-			CString childValue = sonElement->FirstChild()->Value();
-			CString sonTemp = sonElement->Value();
-			if ("TYPE" == sonTemp)
+			for (TiXmlElement *sonElement = StuElement->FirstChildElement();
+				sonElement != NULL;
+				sonElement = sonElement->NextSiblingElement())
 			{
-				msgType = childValue;
-			}
-			iter = mapTagExplain.find(sonElement->Value());
-			if (iter != mapTagExplain.end())
-			{
-				//string childStr = childValue.GetBuffer();
-				//childValue.ReleaseBuffer();
-				//if (IncludeChinese((char*)childStr.c_str()))
-				//{
-				//	outmsg.Format("%s : %s\r\n", iter->second.c_str(), transcoding2utf8((char*)childStr.c_str()));
-				//}
-				//else
-				//{
-				//	outmsg.Format("%s : %s\r\n", iter->second.c_str(), childValue);
-				//}
-				outmsg.Format("%s : %s\r\n", iter->second.c_str(), childValue);
-				printLog(outmsg);
-			}
-			for (TiXmlElement *sonSonElement = sonElement->FirstChildElement();
-				sonSonElement != NULL;
-				sonSonElement = sonSonElement->NextSiblingElement())
-			{
-				iter = mapTagExplain.find(sonSonElement->Value());
+				CString sonTemp = sonElement->Value();
+				CString childValue;
+				TiXmlNode* tiXmlNode = sonElement->FirstChild();
+				if (tiXmlNode == NULL)
+				{
+					if (sonTemp == "RECV")
+					{
+						outmsg.Format("消息接收者 : -\r\n");
+						printLog(outmsg);
+
+					}
+					continue;
+				}
+				else
+				{
+					childValue = sonElement->FirstChild()->Value();
+				}
+				
+				if ("TYPE" == sonTemp)
+				{
+					msgType = childValue;
+					iter = mapMsgType.find(childValue.GetBuffer());
+					if (iter != mapMsgType.end())
+					{
+						outmsg.Format("消息类别 : %s(%s)\r\n", childValue, iter->second.c_str());
+						printLog(outmsg);
+					}
+					continue;
+				}
+				iter = mapTagExplain.find(sonElement->Value());
 				if (iter != mapTagExplain.end())
 				{
-					CString childValue1 = sonSonElement->FirstChild()->Value();
-					//string childStr = childValue1.GetBuffer();
-					//childValue1.ReleaseBuffer();
-					//if (IncludeChinese((char*)childStr.c_str()))
-					//{
-					//	outmsg.Format("%s : %s\r\n", iter->second.c_str(), transcoding2utf8((char*)childStr.c_str()));
-					//}
-					//else
-					//{
-					//	outmsg.Format("%s : %s\r\n", iter->second.c_str(), childValue1);
-					//}
-					outmsg.Format("└%s : %s\r\n", iter->second.c_str(), childValue1);
+					outmsg.Format("%s : %s\r\n", iter->second.c_str(), childValue);
 					printLog(outmsg);
 				}
-			}
+				//第二层
+				for (TiXmlElement *sonSonElement = sonElement->FirstChildElement();
+					sonSonElement != NULL;
+					sonSonElement = sonSonElement->NextSiblingElement())
+				{
+					iter = mapTagExplain.find(sonSonElement->Value());
+					if (iter != mapTagExplain.end())
+					{
+						CString childValue1 = sonSonElement->FirstChild()->Value();
+						outmsg.Format("└%s : %s\r\n", iter->second.c_str(), childValue1);
+						printLog(outmsg);
+					}
+				}
 
+			}
 		}
+	}
+	catch (const std::exception&)
+	{
+
 	}
 	map<string, string>mapTemp;
 	if ("RERQ" == msgType)

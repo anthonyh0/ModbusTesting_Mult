@@ -1,0 +1,225 @@
+192.168.9.103 tcpserver 本机
+   连接特定的 DNS 后缀 . . . . . . . :
+   描述. . . . . . . . . . . . . . . : Intel(R) Wi-Fi 6 AX201 160MHz
+   物理地址. . . . . . . . . . . . . : 9C-29-76-0E-4A-57
+   DHCP 已启用 . . . . . . . . . . . : 是
+   自动配置已启用. . . . . . . . . . : 是
+   本地链接 IPv6 地址. . . . . . . . : fe80::b9:61b1:3f33:8f8d%3(首选)
+   IPv4 地址 . . . . . . . . . . . . : 192.168.9.103(首选)
+   子网掩码  . . . . . . . . . . . . : 255.255.255.0
+   获得租约的时间  . . . . . . . . . : 2021年6月12日 09:45:45
+   租约过期的时间  . . . . . . . . . : 2021年6月13日 00:37:53
+   默认网关. . . . . . . . . . . . . : 192.168.9.1
+   DHCP 服务器 . . . . . . . . . . . : 192.168.9.1
+   DHCPv6 IAID . . . . . . . . . . . : 60565878
+   DHCPv6 客户端 DUID  . . . . . . . : 00-01-00-01-27-63-77-FF-00-4C-E0-86-1B-E1
+   DNS 服务器  . . . . . . . . . . . : 192.168.1.1
+                                       192.168.9.1
+   TCPIP 上的 NetBIOS  . . . . . . . : 已启用
+------------------------------------------------------------------------------------------
+192.168.9.101 tcpclient 它机
+   连接特定的 DNS 后缀 . . . . . . . :
+   描述. . . . . . . . . . . . . . . : Qualcomm Atheros AR956x Wireless Network
+Adapter
+   物理地址. . . . . . . . . . . . . : AC-B5-7D-8A-12-5C
+   DHCP 已启用 . . . . . . . . . . . : 是
+   自动配置已启用. . . . . . . . . . : 是
+   本地链接 IPv6 地址. . . . . . . . : fe80::7c06:11b:58c3:df3a%14(首选)
+   IPv4 地址 . . . . . . . . . . . . : 192.168.9.101(首选)
+   子网掩码  . . . . . . . . . . . . : 255.255.255.0
+   获得租约的时间  . . . . . . . . . : 2021年6月12日 星期六 下午 5:39:12
+   租约过期的时间  . . . . . . . . . : 2021年6月13日 星期日 上午 12:39:10
+   默认网关. . . . . . . . . . . . . : 192.168.9.1
+   DHCP 服务器 . . . . . . . . . . . : 192.168.9.1
+   DHCPv6 IAID . . . . . . . . . . . : 279754109
+   DHCPv6 客户端 DUID  . . . . . . . : 00-01-00-01-24-E9-A4-61-08-62-66-00-CF-EF
+
+   DNS 服务器  . . . . . . . . . . . : 223.5.5.5
+                                       223.6.6.6
+   TCPIP 上的 NetBIOS  . . . . . . . : 已启用
+
+9c 29 76 0e 4a 57 ac b5 7d 8a 12 5c 08 00 45 00
+00 2a 72 3d 40 00 80 06 f4 73 c0 a8 09 65 c0 a8
+09 67 38 b6 1f 90 ed 4a d5 6a 7c d7 7d 3d 50 18
+40 29 95 41 00 00 31 32 33 34 35 36 37
+
+9c 29 76 0e 4a 57			5 本机mac地址9C-29-76-0E-4A-57
+ac b5 7d 8a 12 5c			5	它机mac地址AC-B5-7D-8A-12-5C
+08 00									2	IPV4（0x0800）
+45										1	0100（version：4）0101(header Len:20bytes(5))
+00										1	显式拥塞通知：不支持ECN传输（0）
+00 2a									2	Total Length:42
+72 3d									2	标识：0x723d（29245）
+40 00									2	标志：0x40
+80										1	生存时间：128
+06										1	协议：TCP（6）
+f4 73									2	标头校验和：0xf473
+c0 a8 09 65						4	源地址：192.168.9.101
+c0 a8 09 67						4	目的地地址：192.168.9.103
+38 b6									2	源端口：14518
+1f 90									2	目标端口：8080
+ed 4a d5 6a						4	序列号（原始）：3981104490
+7c d7 7d 3d						4	确认号（原始）：2094497085
+50 18									2	标志：0x018（PSH，ACK）
+40 29									2	Window：16425
+95 41									2	校验和：0x9541[未验证]
+00 00									2	紧急指针：0
+
+31 32	33 34 35 36 37	TCP段数据（ascii内容：1234567）
+头信息字节长度54。 
+55过后为传送数据内容
+
+
+
+代码：
+// ConsoleApplication1.cpp : 此文件包含 "main" 函数。程序执行将在此处开始并结束。
+//
+
+
+#define HAVE_REMOTE
+#include "pcap.h"
+#include <iostream>
+#include "vector"
+using namespace std;
+
+int main()
+{
+    pcap_if_t* alldevs;
+    pcap_if_t* d;
+    int inum;
+    int i = 0;
+    pcap_t* adhandle;
+    int res;
+    char errbuf[PCAP_ERRBUF_SIZE];
+    struct tm* ltime;
+    char timestr[16];
+    struct pcap_pkthdr* header;
+    const u_char* pkt_data;
+    time_t local_tv_sec;
+    u_int netmask;
+    char packet_filter[] = "src host 192.168.1.115 and port 8080";
+    struct bpf_program fcode;
+
+    /* 获取本机设备列表 */
+    if (pcap_findalldevs_ex((char*)PCAP_SRC_IF_STRING, NULL, &alldevs, errbuf) == -1)
+    {
+        fprintf(stderr, "Error in pcap_findalldevs: %s\n", errbuf);
+        exit(1);
+    }
+
+    /* 打印列表 */
+    for (d = alldevs; d; d = d->next)
+    {
+        printf("%d. %s", ++i, d->name);
+        if (d->description)
+            printf(" (%s)\n", d->description);
+        else
+            printf(" (No description available)\n");
+    }
+
+    if (i == 0)
+    {
+        printf("\nNo interfaces found! Make sure WinPcap is installed.\n");
+        return -1;
+    }
+
+    printf("Enter the interface number (1-%d):", i);
+    scanf("%d", &inum);
+
+    if (inum < 1 || inum > i)
+    {
+        printf("\nInterface number out of range.\n");
+        /* 释放设备列表 */
+        pcap_freealldevs(alldevs);
+        return -1;
+    }
+
+    /* 跳转到已选中的适配器 */
+    for (d = alldevs, i = 0; i < inum - 1; d = d->next, i++);
+
+    /* 打开设备 */
+    if ((adhandle = pcap_open(d->name,          // 设备名
+        65536,            // 要捕捉的数据包的部分 
+                          // 65535保证能捕获到不同数据链路层上的每个数据包的全部内容
+        PCAP_OPENFLAG_PROMISCUOUS,    // 混杂模式
+        1000,             // 读取超时时间
+        NULL,             // 远程机器验证
+        errbuf            // 错误缓冲池
+    )) == NULL)
+    {
+        fprintf(stderr, "\nUnable to open the adapter. %s is not supported by WinPcap\n", d->name);
+        /* 释放设列表 */
+        pcap_freealldevs(alldevs);
+        return -1;
+    }
+
+    printf("\nlistening on %s...\n", d->description);
+
+
+    /* 设置过滤器 */
+    if (d->addresses != NULL)
+        /* 获取接口第一个地址的掩码 */
+        netmask = ((struct sockaddr_in*)(d->addresses->netmask))->sin_addr.S_un.S_addr;
+    else
+        /* 如果这个接口没有地址，那么我们假设这个接口在C类网络中 */
+        netmask = 0xffffff;
+    if (pcap_compile(adhandle, &fcode, packet_filter, 1, netmask) >= 0)
+    {
+        //设置过滤器
+        if (pcap_setfilter(adhandle, &fcode) < 0)
+        {
+            fprintf(stderr, "\nError setting the filter.\n");
+            /* 释放设备列表 */
+            pcap_freealldevs(alldevs);
+            return -1;
+        }
+    }
+    else
+    {
+        fprintf(stderr, "\nError setting the filter.\n");
+        /* 释放设备列表 */
+        pcap_freealldevs(alldevs);
+        return -1;
+    }
+
+    /* 释放设备列表 */
+    pcap_freealldevs(alldevs);
+
+    /* 获取数据包 */
+    while ((res = pcap_next_ex(adhandle, &header, &pkt_data)) >= 0) {
+
+        if (res == 0)
+            /* 超时时间到 */
+            continue;
+
+        /* 将时间戳转换成可识别的格式 */
+        local_tv_sec = header->ts.tv_sec;
+        ltime = localtime(&local_tv_sec);
+        strftime(timestr, sizeof timestr, "%H:%M:%S", ltime);
+
+        printf("%s,%.6d len:%d\n", timestr, header->ts.tv_usec, header->len);
+
+        /* 打印包 */
+        int len = header->caplen + 1;
+        for (i = 1; i < len; i++)
+        {
+            printf("%.2x ", pkt_data[i - 1]);
+            if (pkt_data[i - 1] == 0x7e)
+            {
+                printf("==找到了后五位数据是,%.2x %.2x %.2x %.2x %.2x\n", pkt_data[i], pkt_data[i + 1], pkt_data[i + 2], pkt_data[i + 3], pkt_data[i + 4]);
+            }
+            if ((i % 16) == 0)
+                printf("\n");
+
+        }
+
+        printf("\n-----------------------------------------------------------------\n");
+    }
+
+    if (res == -1) {
+        printf("Error reading the packets: %s\n", pcap_geterr(adhandle));
+        return -1;
+    }
+
+    return 0;
+}

@@ -72,33 +72,33 @@ void			Utf2GBK(CString &buffer);  //UTF-8动转换UNICODE
 void			GBK2Utf(CString &buffer);  //UNICODE动转换UTF-8
 
 CString			DeleteIllegalChar(CString indata);      //删除不可见字符
-CString			StrSwap(CString  indata);
-CString			getCurrentPath();
+CString			StrSwap(CString  indata);				//CString字符交换
+CString			getCurrentPath();						//获取当前路径CString
 //std::string		getCurrentPath_string();
-vector<CString> split(CString str,CString pattern);
+vector<CString> split(CString str,CString pattern);		//CString分割
 
-BOOL			ConnectIPC(const char* IP, const char* path, const char* User, const char* PassWord);
-BOOL			CloseIPC(const char* IP, const char* path);
-BOOL			GetComputerUser(char* name, char* user);
+BOOL			ConnectIPC(const char* IP, const char* path, const char* User, const char* PassWord);	//连接远程PC
+BOOL			CloseIPC(const char* IP, const char* path);												//关闭远程PC
+BOOL			GetComputerUser(char* name, char* user);												//获取PC名
 BOOL			ConnectRemotePC(const char* IP, const char* path, const char* user, const char* pass);  //远程连接日志PC
-BOOL			IsHexString(const char* str);
+BOOL			IsHexString(const char* str);															//判断是否HEX字符串
 
-int				XH_EncodeBase64(char *pASCSrc,char *pBase64Res);
-int				XH_DecodeBase64(char *pBase64Src,char *pASCRes);
-int				ITC_WriteLog(int _level_, LPCTSTR Errinfo, ...);  //写日志函数
-int				initializeLog(char* szpath);
+int				XH_EncodeBase64(char *pASCSrc,char *pBase64Res);					//base64加密
+int				XH_DecodeBase64(char *pBase64Src,char *pASCRes);					//base64解密
+int				ITC_WriteLog(int _level_, LPCTSTR Errinfo, ...);					//写日志函数
+int				initializeLog(char* szpath);										//初始化日志文件
 //new
-bool			isdigit(const std::string& sSrc);
-std::string		trim_left(std::string& sSrc, const std::string& sDrop = " ");
-std::string		trim_right(std::string& sSrc, const std::string& sDrop = " ");
-std::string		trim(std::string& sSrc,	const std::string& sDrop = " ");
-int				replace(std::string &sSrc, const std::string& sBefore, const std::string& sAfter);
-bool			fill_left(std::string &sSrc, const std::string& sFill, const std::string::size_type iSize);
-bool			fill_right(std::string &sSrc, const std::string& sFill, const std::string::size_type iSize);
-void			token(const std::string& sSrc, VecString& vecTokens, const std::string& sSep = ",", bool bIgnorspace = true);
-std::string		to_upper(const std::string sSrc);
-unsigned char	BcdToAscii(unsigned char* sSrc, unsigned char* sDest, int iLen);
-unsigned char	AsciiToBcd(unsigned char* sSrc,unsigned char* sDest, int iLen);
+bool			isdigit(const std::string& sSrc);									//判断字符串为纯数字
+std::string		trim_left(std::string& sSrc, const std::string& sDrop = " ");		//string消除左侧空格，tab
+std::string		trim_right(std::string& sSrc, const std::string& sDrop = " ");		//string消除右侧空格，tab
+std::string		trim(std::string& sSrc,	const std::string& sDrop = " ");			//string消除两侧空格，tab
+int				replace(std::string &sSrc, const std::string& sBefore, const std::string& sAfter);								//string替换字符
+bool			fill_left(std::string &sSrc, const std::string& sFill, const std::string::size_type iSize);						//string左侧填充字符
+bool			fill_right(std::string &sSrc, const std::string& sFill, const std::string::size_type iSize);					//stirng右侧填充字符
+void			token(const std::string& sSrc, VecString& vecTokens, const std::string& sSep = ",", bool bIgnorspace = true);	//string根据分隔符分割字符串
+std::string		to_upper(const std::string sSrc);																				//转大写
+unsigned char	BcdToAscii(unsigned char* sSrc, unsigned char* sDest, int iLen);												//BCD转ASCII
+unsigned char	AsciiToBcd(unsigned char* sSrc,unsigned char* sDest, int iLen);													//ASCII转BCD
 int				Hex2ToInt(char* sSrc);
 int				HexToInt(const char *ch);
 int				CRC_16( unsigned char * aData, unsigned long aSize,unsigned char * output );
@@ -145,4 +145,6 @@ int				IncludeChinese(char *str);
 CString			GetGmtTime(); //yyyy-mm-dd hh:MM:ss
 vector<NetConfig> GetNetworkConfig();//获取网卡信息
 std::string		get_pathOnDla(std::string filter);//打开对话窗口选择文件
+
+
 #endif // !defined(AFX_PUBLICFUNDEF_H__66CA3927_EBD6_460A_A2C8_0DF9CEA039A4__INCLUDED_)
